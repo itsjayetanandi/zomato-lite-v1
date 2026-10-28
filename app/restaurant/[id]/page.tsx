@@ -1,16 +1,19 @@
 "use client";
 
 /**
- * page.tsx — GET /restaurant/[id], the visitor's screen.
+ * page.tsx — the Swaad restaurant page (/restaurant/[id]).
  *
- * Calls GET /api/restaurants/[id] and prints what it gets, top to bottom:
- *   name → average (huge) → latest review (highlighted) → older reviews → write-a-review link.
- * No reviews yet? An invitation to write the first one.
+ * Calls GET /api/restaurants/[id] and prints, top to bottom:
+ *   photo carousel → name → rating pill + Write-a-review → latest review
+ *   → all reviews → (or the empty state) → back link.
  *
- * The frontend does zero maths. It receives 4.5 and prints 4.5.
+ * The frontend does zero maths: the average arrives computed, the order
+ * arrives decided, "2 days ago" arrives as a finished string. The only
+ * arithmetic here is carousel bookkeeping (which photo is showing).
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useParams } from "next/navigation";
 import { TopBar } from "@/components/TopBar";
 
@@ -19,7 +22,10 @@ type Review = {
   rating: number;
   comment: string;
   createdAt: string;
+  timeAgo: string;
 };
+
+type Photo = { url: string; caption: string };
 
 type RestaurantDetail = {
   name: string;
@@ -29,24 +35,36 @@ type RestaurantDetail = {
   totalReviews: number;
   latestReview: Review | null;
   reviews: Review[];
+  photos: Photo[];
 };
 
 /** Draw one fact (a rating) as star glyphs. Presentation, not arithmetic. */
-function Stars({ rating }: { rating: number }) {
+function Stars({ rating, size = "sm" }: { rating: number; size?: "sm" | "lg" }) {
+  const textSize = size === "lg" ? "text-xl" : "text-sm";
   return (
-    <span aria-label={`${rating} out of 5 stars`}>
+    <span aria-label={`${rating} out of 5 stars`} className={textSize}>
       <span className="text-accent">{"★".repeat(rating)}</span>
       <span className="text-border">{"☆".repeat(5 - rating)}</span>
     </span>
   );
 }
 
-/** Format one fact (a timestamp) for reading. Presentation, not arithmetic. */
-function ShortDate({ iso }: { iso: string }) {
+function ChevronIcon({ direction }: { direction: "left" | "right" }) {
   return (
-    <time dateTime={iso}>
-      {new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-    </time>
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path
+        d={direction === "left" ? "M15 6l-6 6 6 6" : "M9 6l6 6-6 6"}
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
@@ -56,6 +74,10 @@ export default function RestaurantPage() {
 
   const [detail, setDetail] = useState<RestaurantDetail | null>(null);
   const [failed, setFailed] = useState(false);
+
+  // Carousel bookkeeping: which photo is on screen right now.
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const [activePhoto, setActivePhoto] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,11 +98,27 @@ export default function RestaurantPage() {
     };
   }, [restaurantId]);
 
+  // Carousel helpers — arithmetic on scroll pixels only, never on data.
+  function handleTrackScroll() {
+    const track = trackRef.current;
+    if (!track || track.clientWidth === 0) return;
+    const index = Math.round(track.scrollLeft / track.clientWidth);
+    setActivePhoto(index);
+  }
+  function goToPhoto(index: number) {
+    const track = trackRef.current;
+    const count = detail?.photos.length ?? 0;
+    if (!track || count === 0) return;
+    const clamped = Math.max(0, Math.min(count - 1, index));
+    track.scrollTo({ left: clamped * track.clientWidth, behavior: "smooth" });
+    setActivePhoto(clamped);
+  }
+
   if (failed) {
     return (
       <>
         <TopBar />
-        <main className="mx-auto max-w-[560px] px-6 py-16">
+        <main className="mx-auto max-w-[640px] px-4 py-16 sm:px-6">
           <p className="text-sm text-muted">Restaurant not found.</p>
         </main>
       </>
@@ -91,7 +129,7 @@ export default function RestaurantPage() {
     return (
       <>
         <TopBar />
-        <main className="mx-auto max-w-[560px] px-6 py-16">
+        <main className="mx-auto max-w-[640px] px-4 py-16 sm:px-6">
           <p className="text-sm text-muted">Loading…</p>
         </main>
       </>
@@ -99,92 +137,192 @@ export default function RestaurantPage() {
   }
 
   const hasReviews = detail.totalReviews > 0;
+  const photos = detail.photos;
 
   return (
     <>
       <TopBar area={detail.area} />
-      <main className="mx-auto max-w-[560px] px-6 py-16">
-      {/* 1. Who this page is about */}
-      <h1 className="text-2xl font-semibold tracking-tight">{detail.name}</h1>
-      <p className="mt-1 text-sm text-muted">
-        {detail.cuisine} · {detail.area}
-      </p>
-
-      {/* 2. The score, received fully computed — printed, not calculated */}
-      <div className="mt-12 flex items-baseline gap-3">
-        <p className="text-6xl font-semibold tracking-tight text-accent">
-          {detail.averageRating ?? "—"}
-        </p>
-        <p className="text-sm text-muted">
-          {detail.totalReviews} {detail.totalReviews === 1 ? "review" : "reviews"}
-        </p>
-      </div>
-
-      {hasReviews ? (
-        <>
-          {/* 3. The newest review, set apart */}
-          {detail.latestReview !== null && (
-            <section className="mt-12">
-              <h2 className="text-xs font-medium uppercase tracking-widest text-muted">
-                Latest review
-              </h2>
-              <div className="mt-3 rounded-xl border border-accent/25 bg-card p-5">
-                <Stars rating={detail.latestReview.rating} />
-                <p className="mt-2 text-sm leading-relaxed">{detail.latestReview.comment}</p>
-                <p className="mt-3 text-xs text-muted">
-                  <ShortDate iso={detail.latestReview.createdAt} />
-                </p>
-              </div>
-            </section>
-          )}
-
-          {/* 4. Everything older, newest first — the backend already sorted it */}
-          {detail.reviews.length > 0 && (
-            <section className="mt-10">
-              <h2 className="text-xs font-medium uppercase tracking-widest text-muted">
-                Earlier reviews
-              </h2>
-              <ul className="mt-2 divide-y divide-border">
-                {detail.reviews.map((review) => (
-                  <li key={review.id} className="py-4">
-                    <div className="flex items-baseline justify-between gap-4">
-                      <Stars rating={review.rating} />
-                      <span className="text-xs text-muted">
-                        <ShortDate iso={review.createdAt} />
-                      </span>
-                    </div>
-                    <p className="mt-1.5 text-sm leading-relaxed">{review.comment}</p>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
-          {/* 5. The invitation to add one */}
-          <div className="mt-12">
-            <Link
-              href={`/review/${restaurantId}`}
-              className="inline-block rounded-xl bg-accent px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-accent/90"
+      <main className="mx-auto max-w-[640px] px-4 pb-16 pt-6 sm:px-6">
+        {/* 1. Photo carousel: snap-scroll strip, swipe on touch, arrows on desktop */}
+        {photos.length > 0 ? (
+          <div className="relative">
+            <div
+              ref={trackRef}
+              onScroll={handleTrackScroll}
+              className="no-scrollbar flex aspect-video snap-x snap-mandatory overflow-x-auto rounded-2xl"
             >
-              Write a review
-            </Link>
+              {photos.map((photo) => (
+                <div
+                  key={photo.url}
+                  className="relative w-full shrink-0 snap-center"
+                >
+                  <Image
+                    src={photo.url}
+                    alt={photo.caption}
+                    fill
+                    sizes="(max-width: 640px) 100vw, 640px"
+                    className="object-cover"
+                    priority={photo === photos[0]}
+                  />
+                  {/* the caption strip */}
+                  <p className="absolute inset-x-0 bottom-0 bg-black/55 px-4 py-2.5 text-xs font-medium text-white">
+                    {photo.caption}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {/* desktop arrows */}
+            {photos.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => goToPhoto(activePhoto - 1)}
+                  aria-label="Previous photo"
+                  className="absolute left-3 top-1/2 hidden -translate-y-1/2 rounded-full border border-border bg-white/90 p-2 text-foreground shadow-sm transition-colors hover:bg-white sm:inline-flex"
+                >
+                  <ChevronIcon direction="left" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => goToPhoto(activePhoto + 1)}
+                  aria-label="Next photo"
+                  className="absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-full border border-border bg-white/90 p-2 text-foreground shadow-sm transition-colors hover:bg-white sm:inline-flex"
+                >
+                  <ChevronIcon direction="right" />
+                </button>
+              </>
+            )}
+
+            {/* dots */}
+            {photos.length > 1 && (
+              <div className="mt-3 flex justify-center gap-1.5">
+                {photos.map((photo, i) => (
+                  <button
+                    key={photo.url}
+                    type="button"
+                    onClick={() => goToPhoto(i)}
+                    aria-label={`Go to photo ${i + 1}`}
+                    className={`h-2 w-2 rounded-full transition-colors ${
+                      i === activePhoto ? "bg-accent" : "bg-border"
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-        </>
-      ) : (
-        /* 6. The empty state: nobody has reviewed yet — an invitation, not an error */
-        <div className="mt-12 rounded-xl border border-border bg-card p-6">
-          <p className="text-sm text-muted">
-            No reviews yet. Be the first to share how it was.
-          </p>
+        ) : (
+          /* 2. Placeholder when there are no photos */
+          <div className="flex aspect-video w-full items-center justify-center rounded-2xl bg-[#f6f1ec]">
+            <span className="text-6xl font-bold text-accent/70">
+              {detail.name.charAt(0)}
+            </span>
+          </div>
+        )}
+
+        {/* 3. Who this page is about */}
+        <h1 className="mt-6 text-2xl font-semibold tracking-tight sm:text-3xl">
+          {detail.name}
+        </h1>
+        <p className="mt-1 text-sm text-muted">
+          {detail.cuisine} · {detail.area}
+        </p>
+
+        {/* 4 + 5. The rating pill and the prominent write-a-review button */}
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            {detail.averageRating !== null ? (
+              <span className="flex items-center gap-1 rounded-full bg-green px-2.5 py-1 text-xs font-semibold text-white">
+                <svg viewBox="0 0 24 24" fill="currentColor" className="h-3 w-3" aria-hidden="true">
+                  <path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z" />
+                </svg>
+                {detail.averageRating}
+              </span>
+            ) : (
+              <span className="rounded-full border border-border px-2.5 py-1 text-xs font-semibold text-muted">
+                New
+              </span>
+            )}
+            <span className="text-xs text-muted">
+              {detail.totalReviews} {detail.totalReviews === 1 ? "review" : "reviews"}
+            </span>
+          </div>
           <Link
             href={`/review/${restaurantId}`}
-            className="mt-4 inline-block rounded-xl bg-accent px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-accent/90"
+            className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent/90"
           >
-            Write the first review
+            Write a review
           </Link>
         </div>
-      )}
-    </main>
+
+        {hasReviews ? (
+          <>
+            {/* 6. The latest review, set apart */}
+            {detail.latestReview !== null && (
+              <section className="mt-10">
+                <h2 className="text-xs font-medium uppercase tracking-widest text-muted">
+                  Latest review
+                </h2>
+                <div className="mt-3 rounded-2xl border border-accent/25 bg-card p-5 shadow-sm">
+                  <Stars rating={detail.latestReview.rating} size="lg" />
+                  <p className="mt-2 text-sm leading-relaxed">
+                    {detail.latestReview.comment}
+                  </p>
+                  <p className="mt-3 text-xs text-muted">
+                    {detail.latestReview.timeAgo}
+                  </p>
+                </div>
+              </section>
+            )}
+
+            {/* 7. All the older reviews as clean cards, newest first as sent */}
+            {detail.reviews.length > 0 && (
+              <section className="mt-8">
+                <h2 className="text-xs font-medium uppercase tracking-widest text-muted">
+                  All reviews
+                </h2>
+                <div className="mt-3 space-y-3">
+                  {detail.reviews.map((review) => (
+                    <article
+                      key={review.id}
+                      className="rounded-2xl border border-border bg-card p-4 shadow-sm"
+                    >
+                      <div className="flex items-center justify-between gap-4">
+                        <Stars rating={review.rating} />
+                        <span className="text-xs text-muted">{review.timeAgo}</span>
+                      </div>
+                      <p className="mt-2 text-sm leading-relaxed">{review.comment}</p>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+          </>
+        ) : (
+          /* 8. The empty state: an invitation, not an error */
+          <div className="mt-10 rounded-2xl border border-border bg-card p-6">
+            <p className="text-sm text-muted">
+              No reviews yet. Be the first to share how it was.
+            </p>
+            <Link
+              href={`/review/${restaurantId}`}
+              className="mt-4 inline-block rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent/90"
+            >
+              Write the first review
+            </Link>
+          </div>
+        )}
+
+        {/* 9. Back to the list */}
+        <div className="mt-12">
+          <Link
+            href="/"
+            className="text-sm font-medium text-muted transition-colors hover:text-accent"
+          >
+            ← Back to all restaurants
+          </Link>
+        </div>
+      </main>
     </>
   );
 }
