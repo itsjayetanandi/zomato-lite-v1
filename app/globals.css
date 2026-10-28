@@ -2,16 +2,18 @@
 
 /*
  * The palette. Every color in the product is named here, once.
- * Off-white paper, warm near-black ink, hairline borders,
- * and one warm terracotta accent used sparingly.
+ * White paper, warm near-black ink, hairline borders. The red-orange
+ * accent belongs to buttons and active states; green belongs ONLY to
+ * rating pills.
  */
 :root {
-  --background: #faf9f6;
+  --background: #ffffff;
   --foreground: #1c1917;
   --muted: #78716c;
   --accent: #e14d2a;
   --border: #e7e5e4;
   --card: #ffffff;
+  --green: #1b7a45;
 }
 
 @theme inline {
@@ -21,6 +23,7 @@
   --color-accent: var(--accent);
   --color-border: var(--border);
   --color-card: var(--card);
+  --color-green: var(--green);
   --font-sans: var(--font-poppins);
 }
 
