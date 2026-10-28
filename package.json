@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "db:setup": "node --env-file=.env.local scripts/db-setup.mjs",
+    "db:v2": "node --env-file=.env.local scripts/db-v2.mjs",
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint"

@@ -12,3 +12,11 @@ CREATE TABLE reviews (
   comment TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE restaurant_photos (
+  id SERIAL PRIMARY KEY,
+  restaurant_id INTEGER NOT NULL REFERENCES restaurants(id),
+  url TEXT NOT NULL,
+  caption TEXT NOT NULL,
+  position INTEGER NOT NULL
+);

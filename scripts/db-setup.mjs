@@ -21,9 +21,12 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 // for us (that is the --env-file part of the npm script).
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-// 1. Tear down anything already there (reviews first: it points at
-//    restaurants, so it must be removed before the table it points at).
-await pool.query("DROP TABLE IF EXISTS reviews; DROP TABLE IF EXISTS restaurants;");
+// 1. Tear down anything already there (children first: photos and reviews
+//    point at restaurants, so they must be removed before the table they
+//    point at — Postgres enforces this).
+await pool.query(
+  "DROP TABLE IF EXISTS restaurant_photos; DROP TABLE IF EXISTS reviews; DROP TABLE IF EXISTS restaurants;"
+);
 
 // 2. Apply the blueprint.
 await pool.query(readFileSync(join(root, "db", "schema.sql"), "utf8"));
