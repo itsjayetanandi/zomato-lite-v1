@@ -9,6 +9,7 @@
  */
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { TopBar } from "@/components/TopBar";
 
 export default function ReviewPage() {
   const params = useParams<{ restaurantId: string }>();
@@ -16,6 +17,7 @@ export default function ReviewPage() {
   const router = useRouter();
 
   const [restaurantName, setRestaurantName] = useState<string | null>(null);
+  const [restaurantArea, setRestaurantArea] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
 
   const [rating, setRating] = useState<number | null>(null);
@@ -33,7 +35,10 @@ export default function ReviewPage() {
           return;
         }
         const data = await res.json();
-        if (!cancelled) setRestaurantName(data.name);
+        if (!cancelled) {
+          setRestaurantName(data.name);
+          setRestaurantArea(data.area);
+        }
       })
       .catch(() => {
         if (!cancelled) setNotFound(true);
@@ -82,14 +87,19 @@ export default function ReviewPage() {
 
   if (notFound) {
     return (
-      <main className="mx-auto max-w-[560px] px-6 py-16">
-        <p className="text-sm text-muted">Restaurant not found.</p>
-      </main>
+      <>
+        <TopBar />
+        <main className="mx-auto max-w-[560px] px-6 py-16">
+          <p className="text-sm text-muted">Restaurant not found.</p>
+        </main>
+      </>
     );
   }
 
   return (
-    <main className="mx-auto max-w-[560px] px-6 py-16">
+    <>
+      <TopBar area={restaurantArea} />
+      <main className="mx-auto max-w-[560px] px-6 py-16">
       <h1 className="text-2xl font-semibold tracking-tight">
         {restaurantName ?? "Loading…"}
       </h1>
@@ -144,5 +154,6 @@ export default function ReviewPage() {
         </button>
       </form>
     </main>
+    </>
   );
 }

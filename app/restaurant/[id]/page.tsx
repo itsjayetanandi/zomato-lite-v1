@@ -12,6 +12,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { TopBar } from "@/components/TopBar";
 
 type Review = {
   id: number;
@@ -77,24 +78,32 @@ export default function RestaurantPage() {
 
   if (failed) {
     return (
-      <main className="mx-auto max-w-[560px] px-6 py-16">
-        <p className="text-sm text-muted">Restaurant not found.</p>
-      </main>
+      <>
+        <TopBar />
+        <main className="mx-auto max-w-[560px] px-6 py-16">
+          <p className="text-sm text-muted">Restaurant not found.</p>
+        </main>
+      </>
     );
   }
 
   if (detail === null) {
     return (
-      <main className="mx-auto max-w-[560px] px-6 py-16">
-        <p className="text-sm text-muted">Loading…</p>
-      </main>
+      <>
+        <TopBar />
+        <main className="mx-auto max-w-[560px] px-6 py-16">
+          <p className="text-sm text-muted">Loading…</p>
+        </main>
+      </>
     );
   }
 
   const hasReviews = detail.totalReviews > 0;
 
   return (
-    <main className="mx-auto max-w-[560px] px-6 py-16">
+    <>
+      <TopBar area={detail.area} />
+      <main className="mx-auto max-w-[560px] px-6 py-16">
       {/* 1. Who this page is about */}
       <h1 className="text-2xl font-semibold tracking-tight">{detail.name}</h1>
       <p className="mt-1 text-sm text-muted">
@@ -176,5 +185,6 @@ export default function RestaurantPage() {
         </div>
       )}
     </main>
+    </>
   );
 }
